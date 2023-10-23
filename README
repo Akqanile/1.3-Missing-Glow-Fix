@@ -1,1 +1,2 @@
-fixes missing glow on object id 83
+- fixes missing glow on object id 83
+- fix flip x and y being swapped when rotated sideways

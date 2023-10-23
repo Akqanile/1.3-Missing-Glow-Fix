@@ -1,6 +1,7 @@
 #include "dobby.h"
 #include <dlfcn.h>
 #include "cocos2dcpp.h"
+#include <array>
 
 void* get_sym_addr(const char* sym_name)
 {
@@ -14,6 +15,32 @@ public:
     static void* sharedState();
 };
 
+void (*EditorUI_transformObject)(EditorUI* self, GameObject* obj, int editCommand);
+void HEditorUI_transformObject(EditorUI* self, GameObject* obj, int editCommand)
+{
+    static std::array<int, 2> swapCmd = {9, 10};
+
+    if (editCommand != 9 && editCommand != 10)
+    {
+        return EditorUI_transformObject(self, obj, editCommand);
+    }
+
+    auto goVft = reinterpret_cast<uintptr_t>(*reinterpret_cast<void**>(obj));
+    auto getRotation = reinterpret_cast<float (*)(GameObject*)>(*reinterpret_cast<void**>(goVft + 48));
+
+    float rot = fmodf(fabsf(getRotation(obj)), 360.0f);
+    bool rotatedToSide = (rot == 90.0f || rot == 270.0f);
+
+    if (!rotatedToSide)
+    {
+        return EditorUI_transformObject(self, obj, editCommand);
+    }
+    
+    // this is so swag
+    editCommand = swapCmd[editCommand != 10 && rotatedToSide];
+
+    return EditorUI_transformObject(self, obj, editCommand);
+}
 
 void (*GameObject_addGlow)(void*);
 void GameObject_addGlowH(GameObject* self)
@@ -43,8 +70,13 @@ void GameObject_addGlowH(GameObject* self)
     self->setOpacity(255);
 };
 
+
 [[gnu::constructor]]
 void constructor()
 {
+    DobbyHook(
+        get_sym_addr("_ZN8EditorUI15transformObjectEP10GameObject11EditCommand"), 
+        (void*)HEditorUI_transformObject, (void**)&EditorUI_transformObject
+    );
     DobbyHook(get_sym_addr("_ZN10GameObject7addGlowEv"), (void*)GameObject_addGlowH, (void**)&GameObject_addGlow);
 };
